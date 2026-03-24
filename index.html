@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataLens – Auto Dashboard Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3a;
+    --accent: #7c6aff;
+    --accent2: #ff6a9b;
+    --accent3: #6affd4;
+    --text: #e8e8f0;
+    --muted: #6b6b88;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 56px;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.7rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+  }
+
+  .logo span { -webkit-text-fill-color: var(--accent3); }
+
+  .badge {
+    font-size: 0.65rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .hero-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  .hero-title em {
+    font-style: normal;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-sub {
+    color: var(--muted);
+    font-size: 0.9rem;
+    max-width: 500px;
+    margin: 0 auto 32px;
+    line-height: 1.7;
+  }
+
+  .feature-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+
+  .pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 6px 14px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  .pill span { margin-right: 5px; }
+
+  .steps {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 48px;
+    flex-wrap: wrap;
+    animation: fadeUp 0.5s ease 0.1s both;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.73rem;
+    color: var(--muted);
+    padding: 0 20px;
+    position: relative;
+  }
+
+  .step:not(:last-child)::after {
+    content: '→';
+    position: absolute;
+    right: -4px;
+    color: var(--border);
+  }
+
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+
+  /* API Key */
+  .api-notice {
+    background: rgba(255,217,106,0.06);
+    border: 1px solid rgba(255,217,106,0.2);
+    border-radius: 12px;
+    padding: 16px 22px;
+    margin-bottom: 24px;
+    font-size: 0.76rem;
+    color: #ffd96a;
+    line-height: 1.7;
+  }
+
+  .api-notice a { color: #ffd96a; }
+
+  .api-key-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .api-key-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text);
+    outline: none;
+  }
+
+  .api-key-input:focus { border-color: var(--accent); }
+
+  .api-key-save {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  /* Upload */
+  #upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    padding: 72px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.7s ease both;
+  }
+
+  #upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(124,106,255,0.1) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  #upload-zone:hover, #upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(124,106,255,0.04);
+    transform: translateY(-2px);
+  }
+
+  .upload-icon { font-size: 3.5rem; margin-bottom: 20px; display: block; }
+  .upload-title { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; }
+  .upload-sub { color: var(--muted); font-size: 0.8rem; margin-bottom: 28px; line-height: 1.6; }
+
+  .upload-btn {
+    background: linear-gradient(135deg, var(--accent), #9b6aff);
+    border: none;
+    color: white;
+    padding: 14px 32px;
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    cursor: pointer;
+    letter-spacing: 1.5px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(124,106,255,0.35);
+  }
+
+  .upload-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(124,106,255,0.45); }
+  #file-input { display: none; }
+
+  #status-bar {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 22px;
+    margin-top: 20px;
+    font-size: 0.8rem;
+    color: var(--accent3);
+    align-items: center;
+    gap: 12px;
+  }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent3);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    display: none;
+    font-size: 0.8rem;
+    margin-top: 14px;
+    text-align: center;
+    color: var(--accent2);
+    background: rgba(255,106,155,0.06);
+    border: 1px solid rgba(255,106,155,0.2);
+    border-radius: 10px;
+    padding: 12px 20px;
+  }
+
+  /* Dashboard */
+  #dashboard { display: none; margin-top: 40px; }
+
+  .dash-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+    gap: 16px;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .dash-title { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; }
+  .dash-subtitle { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
+
+  .reset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+  }
+
+  .reset-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .kpi-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .kpi-value { font-family: 'Syne', sans-serif; font-size: 1.7rem; font-weight: 800; }
+  .kpi-sub { font-size: 0.7rem; color: var(--accent3); margin-top: 6px; }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-label { font-family: 'Syne', sans-serif; font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+  .chart-desc { font-size: 0.72rem; color: var(--muted); margin-bottom: 22px; }
+  .chart-wrap { position: relative; height: 250px; }
+
+  #ai-insight {
+    background: linear-gradient(135deg, rgba(124,106,255,0.07), rgba(255,106,155,0.04));
+    border: 1px solid rgba(124,106,255,0.22);
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 24px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .insight-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .insight-text { font-size: 0.82rem; line-height: 1.8; }
+
+  .table-wrap {
+    margin-top: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    animation: fadeUp 0.65s ease both;
+  }
+
+  .table-header {
+    padding: 18px 26px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .table-title { font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 700; }
+  .table-count { font-size: 0.72rem; color: var(--muted); }
+  .table-scroll { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  th {
+    padding: 12px 18px;
+    text-align: left;
+    color: var(--muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 11px 18px;
+    border-bottom: 1px solid rgba(42,42,58,0.5);
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  footer {
+    text-align: center;
+    padding-top: 60px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .typing::after { content: '▋'; animation: blink 0.8s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">Data<span>Lens</span></div>
+    <div class="badge">AI-Powered · Free</div>
+  </header>
+
+  <div id="landing">
+    <div class="hero">
+      <h1 class="hero-title">Upload data.<br><em>Get a dashboard.</em></h1>
+      <p class="hero-sub">Drop any Excel or CSV file and AI automatically builds you an interactive dashboard — charts, KPIs, and insights, all in seconds.</p>
+      <div class="feature-pills">
+        <div class="pill"><span>📊</span>Auto chart selection</div>
+        <div class="pill"><span>🤖</span>AI-powered insights</div>
+        <div class="pill"><span>⚡</span>Instant render</div>
+        <div class="pill"><span>🔒</span>Runs in your browser</div>
+        <div class="pill"><span>📁</span>.xlsx · .xls · .csv</div>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div>Upload file</div>
+      <div class="step"><div class="step-num">2</div>AI analyzes</div>
+      <div class="step"><div class="step-num">3</div>Dashboard renders</div>
+      <div class="step"><div class="step-num">4</div>Explore & share</div>
+    </div>
+
+    <!-- API Key Entry -->
+    <div class="api-notice" id="api-notice">
+      🔑 This app uses the <strong>Google Gemini API</strong> (free tier) to auto-generate your dashboard.
+      Get a free API key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a> — no credit card needed.
+      Your key is stored only in your browser.
+      <div class="api-key-row">
+        <input type="password" class="api-key-input" id="api-key-input" placeholder="AIza...">
+        <button class="api-key-save" onclick="saveKey()">SAVE KEY</button>
+      </div>
+    </div>
+
+    <div id="upload-zone">
+      <span class="upload-icon">⬆</span>
+      <div class="upload-title">Drop your dataset here</div>
+      <div class="upload-sub">Supports .xlsx, .xls, .csv<br>Your data never leaves your browser</div>
+      <button class="upload-btn" onclick="document.getElementById('file-input').click()">CHOOSE FILE</button>
+      <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <div id="status-bar">
+      <div class="spinner"></div>
+      <span id="status-text">Reading file...</span>
+    </div>
+  </div>
+
+  <!-- Dashboard view -->
+  <div id="dashboard">
+    <div class="dash-header">
+      <div>
+        <div class="dash-title" id="dash-title">Dashboard</div>
+        <div class="dash-subtitle" id="dash-subtitle"></div>
+      </div>
+      <button class="reset-btn" onclick="resetApp()">↩ NEW FILE</button>
+    </div>
+    <div class="kpi-row" id="kpi-row"></div>
+    <div class="charts-grid" id="charts-grid"></div>
+    <div id="ai-insight">
+      <div class="insight-header">✦ AI INSIGHT</div>
+      <div class="insight-text typing" id="insight-text"></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">Raw Data Preview</div>
+        <div class="table-count" id="table-count"></div>
+      </div>
+      <div class="table-scroll">
+        <table id="data-table"></table>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Built with Chart.js · SheetJS · Gemini AI &nbsp;·&nbsp;
+    <a href="https://aistudio.google.com/app/apikey" target="_blank">Get your free API key</a>
+  </footer>
+</div>
+
+<script>
+  // ── API Key ──────────────────────────────────────────────────────
+  let apiKey = localStorage.getItem('datalens_gemini_key') || '';
+
+  function saveKey() {
+    const val = document.getElementById('api-key-input').value.trim();
+    if (!val) return;
+    apiKey = val;
+    localStorage.setItem('datalens_gemini_key', apiKey);
+    document.getElementById('api-notice').style.display = 'none';
+    flashSuccess('API key saved ✓ Now upload your file.');
+  }
+
+  // Show key input if no key saved
+  window.addEventListener('DOMContentLoaded', () => {
+    const notice = document.getElementById('api-notice');
+    if (notice) notice.style.display = apiKey ? 'none' : 'block';
+  });
+
+  // ── Drag & Drop ──────────────────────────────────────────────────
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  document.getElementById('file-input').addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  let charts = [];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function setStatus(msg) {
+    const bar = document.getElementById('status-bar');
+    bar.style.display = 'flex';
+    document.getElementById('status-text').textContent = msg;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    if (!el) return;
+    el.style.cssText = 'display:block;color:var(--accent2);background:rgba(255,106,155,0.06);border:1px solid rgba(255,106,155,0.2);border-radius:10px;padding:12px 20px;margin-top:14px;text-align:center;font-size:0.8rem;';
+    el.textContent = '⚠ ' + (msg || 'Unknown error');
+    document.getElementById('status-bar').style.display = 'none';
+  }
+
+  function flashSuccess(msg) {
+    const el = document.getElementById('error-msg');
+    el.style.cssText = 'display:block;color:var(--accent3);background:rgba(106,255,212,0.04);border:1px solid rgba(106,255,212,0.2);border-radius:10px;padding:12px 20px;margin-top:14px;text-align:center;font-size:0.8rem;';
+    el.textContent = msg;
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  function resetApp() {
+    charts.forEach(c => c.destroy()); charts = [];
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('landing').style.display = 'block';
+    document.getElementById('status-bar').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'none';
+    document.getElementById('file-input').value = '';
+    if (!apiKey) document.getElementById('api-notice').style.display = 'block';
+  }
+
+  // ── File Reading ─────────────────────────────────────────────────
+  async function handleFile(file) {
+    if (!apiKey) {
+      document.getElementById('api-notice').style.display = 'block';
+      showError('Please enter your API key first.');
+      return;
+    }
+    document.getElementById('error-msg').style.display = 'none';
+    setStatus('Reading file...');
+    try {
+      const data = await readFile(file);
+      if (!data || data.length < 2) { showError('File appears empty or unreadable.'); return; }
+      setStatus('Analyzing data structure...');
+      await sleep(300);
+      const headers = data[0].map(h => String(h || '').trim());
+      const rows = data.slice(1).filter(r => r.some(c => c !== null && c !== ''));
+      setStatus('Calling Gemini AI to design your dashboard...');
+      await buildDashboard(headers, rows, file.name);
+    } catch (err) {
+      showError(err.message);
+    }
+  }
+
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'binary' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          resolve(XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }));
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = reject;
+      reader.readAsBinaryString(file);
+    });
+  }
+
+  // ── AI Dashboard Builder ──────────────────────────────────────────
+  async function buildDashboard(headers, rows, filename) {
+    const cols = headers.map((h, i) => {
+      const vals = rows.map(r => r[i]).filter(v => v !== null && v !== '');
+      const nums = vals.filter(v => !isNaN(parseFloat(v)) && isFinite(v));
+      const isNum = nums.length > vals.length * 0.7;
+      return { name: h, index: i, isNum, values: vals, numVals: nums.map(Number) };
+    });
+
+    const numCols = cols.filter(c => c.isNum);
+    const catCols = cols.filter(c => !c.isNum);
+    const sample = rows.slice(0, 6).map(r =>
+      headers.reduce((o, h, i) => { o[h] = r[i]; return o; }, {})
+    );
+
+    const prompt = `You are a data analyst. Analyze this dataset and return ONLY a JSON object (no markdown, no preamble, no explanation).
+
+Dataset name: "${filename.replace(/\.[^.]+$/, '')}"
+All columns: ${JSON.stringify(headers)}
+Numeric columns: ${JSON.stringify(numCols.map(c => c.name))}
+Categorical columns: ${JSON.stringify(catCols.map(c => c.name))}
+Total rows: ${rows.length}
+Sample (first 6 rows): ${JSON.stringify(sample)}
+
+Return exactly this structure:
+{
+  "title": "short punchy dashboard title (max 5 words)",
+  "subtitle": "one sentence describing what this data shows",
+  "kpis": [
+    { "label": "KPI name", "colName": "exact column name", "agg": "sum|avg|max|min|count" }
+  ],
+  "charts": [
+    { "type": "bar|line|pie|doughnut", "title": "chart title", "desc": "one-line description", "xCol": "exact column name", "yCol": "exact numeric column name", "wide": false }
+  ],
+  "insight": "2-3 sentences of analytical insight specific to this data's columns and patterns."
+}
+
+Constraints:
+- 3-4 KPIs; use only numeric columns for aggregations (use count if no numerics)
+- 2-4 charts; mix chart types based on what best fits the data
+- xCol/yCol/colName must exactly match the provided column names
+- insight should mention specific columns and patterns`;
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 1000 }
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 400 || res.status === 401 || res.status === 403) {
+        apiKey = '';
+        localStorage.removeItem('datalens_gemini_key');
+        document.getElementById('api-notice').style.display = 'block';
+        throw new Error('Invalid API key. Please re-enter your key above.');
+      }
+      throw new Error(err.error?.message || `API error ${res.status}`);
+    }
+
+    const result = await res.json();
+    const raw = result.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+
+    let meta;
+    try { meta = JSON.parse(clean); }
+    catch { throw new Error('Could not parse AI response. Please try again.'); }
+
+    setStatus('Rendering your dashboard...');
+    await sleep(200);
+    renderDashboard(meta, cols, rows, headers);
+  }
+
+  // ── Render Dashboard ───────────────────────────────────────────────
+  const COLORS = ['#7c6aff','#ff6a9b','#6affd4','#ffd96a','#ff9f6a','#6aaeff','#d96aff','#ff6a6a'];
+
+  function getCol(cols, name) {
+    return cols.find(c => c.name === name) ||
+           cols.find(c => c.name.toLowerCase() === (name||'').toLowerCase());
+  }
+
+  function agg(col, type) {
+    if (!col || !col.numVals.length) return 0;
+    const v = col.numVals;
+    if (type === 'sum') return v.reduce((a,b) => a+b, 0);
+    if (type === 'avg') return v.reduce((a,b) => a+b, 0) / v.length;
+    if (type === 'max') return Math.max(...v);
+    if (type === 'min') return Math.min(...v);
+    return v.length;
+  }
+
+  function fmt(n) {
+    if (isNaN(n)) return '—';
+    if (Math.abs(n) >= 1e9) return (n/1e9).toFixed(1)+'B';
+    if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1)+'M';
+    if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(1)+'K';
+    return parseFloat(n.toFixed(2)).toLocaleString();
+  }
+
+  function renderDashboard(meta, cols, rows, headers) {
+    charts.forEach(c => c.destroy()); charts = [];
+
+    document.getElementById('dash-title').textContent = meta.title || 'Dashboard';
+    document.getElementById('dash-subtitle').textContent = meta.subtitle || '';
+
+    // KPIs
+    const kpiRow = document.getElementById('kpi-row');
+    kpiRow.innerHTML = '';
+    (meta.kpis || []).slice(0, 5).forEach((kpi, i) => {
+      const col = getCol(cols, kpi.colName);
+      const val = col ? agg(col, kpi.agg) : rows.length;
+      const card = document.createElement('div');
+      card.className = 'kpi-card';
+      card.style.animationDelay = `${i * 0.08}s`;
+      card.innerHTML = `
+        <div class="kpi-label">${kpi.label}</div>
+        <div class="kpi-value">${fmt(val)}</div>
+        <div class="kpi-sub">${kpi.agg || 'total'}</div>`;
+      kpiRow.appendChild(card);
+    });
+
+    // Charts
+    const grid = document.getElementById('charts-grid');
+    grid.innerHTML = '';
+    (meta.charts || []).forEach((ch, i) => {
+      const xCol = getCol(cols, ch.xCol);
+      const yCol = getCol(cols, ch.yCol);
+      if (!xCol || !yCol) return;
+
+      const grouped = {};
+      xCol.values.forEach((x, idx) => {
+        const key = String(x || 'N/A').slice(0, 24);
+        const y = parseFloat(yCol.values[idx]);
+        if (!grouped[key]) grouped[key] = 0;
+        grouped[key] += isNaN(y) ? 0 : y;
+      });
+
+      const sorted = Object.entries(grouped).sort((a,b) => b[1]-a[1]).slice(0, 12);
+      const labels = sorted.map(e => e[0]);
+      const data = sorted.map(e => e[1]);
+      const isPie = ['pie','doughnut'].includes(ch.type);
+
+      const card = document.createElement('div');
+      card.className = 'chart-card' + (ch.wide ? ' wide' : '');
+      card.style.animationDelay = `${i * 0.1 + 0.2}s`;
+      card.innerHTML = `
+        <div class="chart-label">${ch.title}</div>
+        <div class="chart-desc">${ch.desc}</div>
+        <div class="chart-wrap"><canvas id="chart-${i}"></canvas></div>`;
+      grid.appendChild(card);
+
+      const c = new Chart(document.getElementById(`chart-${i}`).getContext('2d'), {
+        type: ch.type,
+        data: {
+          labels,
+          datasets: [{
+            label: ch.yCol,
+            data,
+            backgroundColor: isPie ? COLORS.slice(0, labels.length) : COLORS[i % COLORS.length] + 'aa',
+            borderColor: isPie ? COLORS.slice(0, labels.length) : COLORS[i % COLORS.length],
+            borderWidth: 2,
+            borderRadius: isPie ? 0 : 6,
+            tension: 0.4,
+            fill: ch.type === 'line' ? { target: 'origin', above: COLORS[i % COLORS.length] + '15' } : false
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: isPie, labels: { color: '#6b6b88', font: { family: 'DM Mono', size: 11 }, boxWidth: 12 } },
+            tooltip: {
+              backgroundColor: '#13131a', borderColor: '#2a2a3a', borderWidth: 1,
+              titleColor: '#e8e8f0', bodyColor: '#6b6b88',
+              titleFont: { family: 'Syne', size: 13 }, bodyFont: { family: 'DM Mono', size: 11 }
+            }
+          },
+          scales: isPie ? {} : {
+            x: { ticks: { color: '#6b6b88', font: { family: 'DM Mono', size: 10 }, maxRotation: 45 }, grid: { color: '#2a2a3a' } },
+            y: { ticks: { color: '#6b6b88', font: { family: 'DM Mono', size: 10 } }, grid: { color: '#2a2a3a' } }
+          }
+        }
+      });
+      charts.push(c);
+    });
+
+    // Typewriter insight
+    const el = document.getElementById('insight-text');
+    el.textContent = ''; el.classList.add('typing');
+    const text = meta.insight || 'Dashboard generated successfully.';
+    let idx = 0;
+    const tick = setInterval(() => {
+      el.textContent += text[idx++];
+      if (idx >= text.length) { clearInterval(tick); el.classList.remove('typing'); }
+    }, 16);
+
+    // Preview table
+    const table = document.getElementById('data-table');
+    const preview = rows.slice(0, 10);
+    document.getElementById('table-count').textContent = `${rows.length} rows · showing ${preview.length}`;
+    table.innerHTML = `
+      <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${preview.map(r => `<tr>${headers.map((_,i) => `<td>${r[i] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+
+    document.getElementById('status-bar').style.display = 'none';
+    document.getElementById('landing').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>
